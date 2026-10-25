@@ -1,0 +1,553 @@
+name: Build Denial Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      distribution:
+        description: 'Linux Distribution'
+        required: true
+        default: 'Ubuntu 26.04'
+        type: choice
+        options:
+          - Debian 13
+          - Ubuntu 26.04
+          - Fedora 43
+          - Fedora 44
+          - Arch Linux ARM
+      build-all:
+        description: 'Build all distributions and ignore the distribution selection'
+        required: false
+        default: false
+        type: boolean
+      ref:
+        description: 'Ref'
+        required: true
+        default: 'legacy'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+
+  debian-trixie:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Debian 13' }}
+    runs-on: ubuntu-26.04-arm
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    container:
+      image: debian:trixie
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y git sudo passwd ccache build-essential devscripts fakeroot quilt git-buildpackage pristine-tar
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_root="$RUNNER_TEMP/anland-denial-debian-trixie"
+          work_dir="$work_root/work"
+          packages_dir="$work_root/packages"
+          publish_dir="$GITHUB_WORKSPACE/build-artifacts/denial/debian-trixie"
+          mkdir -p "$work_dir" "$packages_dir" "$publish_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_root"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          release_suffix="$short_hash"_"debian_trixie_arm64"
+          echo "BUILD_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PACKAGES_DIR=$packages_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PUBLISH_DIR=$publish_dir" >> "$GITHUB_ENV"
+          echo "BUILD_RELEASE_NAME_SUFFIX=$release_suffix" >> "$GITHUB_ENV"
+
+      - name: Build Denial packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$BUILD_WORK_DIR" \
+            ARTIFACTS_DIR="$BUILD_PACKAGES_DIR" \
+            ARTIFACTS="$BUILD_PACKAGES_DIR" \
+            ANLAND_WITH_DEPS=1 \
+            ANLAND_INSTALL=0 \
+            JOBS=2 \
+            ANLAND_WITH_DE=1 \
+            ANLAND_ENGINE_MODE=auto \
+            bash "$GITHUB_WORKSPACE/producers/denial/Debian13_v5/build.sh"
+
+      - name: Collect Debian packages for debug
+        shell: bash
+        run: |
+          debug_dir="$BUILD_PUBLISH_DIR-debug"
+          mkdir -p "$debug_dir"
+          found=0
+          while IFS= read -r -d '' package; do
+            cp -- "$package" "$debug_dir/"
+            found=1
+          done < <(
+            for candidate in "$BUILD_PACKAGES_DIR" "$BUILD_WORK_DIR" "$GITHUB_WORKSPACE/producers/denial/Debian13_v5/artifacts"; do
+              if [[ -d "$candidate" ]]; then
+                find "$candidate" -type f -name '*.deb' -print0
+              fi
+            done | sort -zu
+          )
+          if [[ "$found" != 1 ]]; then
+            echo "No Debian packages were produced for denial/debian-trixie" >&2
+            exit 1
+          fi
+          (
+            cd "$debug_dir"
+            find . -maxdepth 1 -type f -name '*.deb' -print0 | sort -z | xargs -0r sha256sum > SHA256SUMS
+            test -s SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$debug_dir/SHA256SUMS"
+
+      - name: Upload debug packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: denial_${{ env.BUILD_RELEASE_NAME_SUFFIX }}_debug
+          path: build-artifacts/denial/debian-trixie-debug
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Collect release packages
+        shell: bash
+        run: |
+          debug_dir="$BUILD_PUBLISH_DIR-debug"
+          release_dir="$BUILD_PUBLISH_DIR"
+          mkdir -p "$release_dir"
+          cp -p -- "$debug_dir"/*.deb "$release_dir/"
+          find "$release_dir" -type f -name '*dev*' -delete
+          find "$release_dir" -type f -name '*dbgsym*' -delete
+          find "$release_dir" -type f -name '*test*' -delete
+          if ! compgen -G "$release_dir/*.deb" >/dev/null; then
+            echo "No release Debian packages remain for debian-trixie" >&2
+            exit 1
+          fi
+          (
+            cd "$release_dir"
+            find . -maxdepth 1 -type f -name '*.deb' -print0 | sort -z | xargs -0r sha256sum > SHA256SUMS
+            test -s SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$release_dir/SHA256SUMS"
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: denial_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          path: build-artifacts/denial/debian-trixie
+          if-no-files-found: error
+          retention-days: 90
+
+  ubuntu-resolute:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Ubuntu 26.04' }}
+    runs-on: ubuntu-26.04-arm
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    container:
+      image: ubuntu:resolute
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y git sudo passwd ccache build-essential devscripts fakeroot quilt git-buildpackage pristine-tar
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_root="$RUNNER_TEMP/anland-denial-ubuntu-resolute"
+          work_dir="$work_root/work"
+          packages_dir="$work_root/packages"
+          publish_dir="$GITHUB_WORKSPACE/build-artifacts/denial/ubuntu-resolute"
+          mkdir -p "$work_dir" "$packages_dir" "$publish_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_root"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          release_suffix="$short_hash"_"ubuntu_resolute_arm64"
+          echo "BUILD_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PACKAGES_DIR=$packages_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PUBLISH_DIR=$publish_dir" >> "$GITHUB_ENV"
+          echo "BUILD_RELEASE_NAME_SUFFIX=$release_suffix" >> "$GITHUB_ENV"
+
+      - name: Build Denial packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$BUILD_WORK_DIR" \
+            ARTIFACTS_DIR="$BUILD_PACKAGES_DIR" \
+            ARTIFACTS="$BUILD_PACKAGES_DIR" \
+            ANLAND_WITH_DEPS=1 \
+            ANLAND_INSTALL=0 \
+            JOBS=2 \
+            ANLAND_WITH_DE=1 \
+            ANLAND_ENGINE_MODE=auto \
+            bash "$GITHUB_WORKSPACE/producers/denial/Ubuntu2604_v5/build.sh"
+
+      - name: Collect Debian packages for debug
+        shell: bash
+        run: |
+          debug_dir="$BUILD_PUBLISH_DIR-debug"
+          mkdir -p "$debug_dir"
+          found=0
+          while IFS= read -r -d '' package; do
+            cp -- "$package" "$debug_dir/"
+            found=1
+          done < <(
+            for candidate in "$BUILD_PACKAGES_DIR" "$BUILD_WORK_DIR" "$GITHUB_WORKSPACE/producers/denial/Ubuntu2604_v5/artifacts"; do
+              if [[ -d "$candidate" ]]; then
+                find "$candidate" -type f -name '*.deb' -print0
+              fi
+            done | sort -zu
+          )
+          if [[ "$found" != 1 ]]; then
+            echo "No Debian packages were produced for denial/ubuntu-resolute" >&2
+            exit 1
+          fi
+          (
+            cd "$debug_dir"
+            find . -maxdepth 1 -type f -name '*.deb' -print0 | sort -z | xargs -0r sha256sum > SHA256SUMS
+            test -s SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$debug_dir/SHA256SUMS"
+
+      - name: Upload debug packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: denial_${{ env.BUILD_RELEASE_NAME_SUFFIX }}_debug
+          path: build-artifacts/denial/ubuntu-resolute-debug
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Collect release packages
+        shell: bash
+        run: |
+          debug_dir="$BUILD_PUBLISH_DIR-debug"
+          release_dir="$BUILD_PUBLISH_DIR"
+          mkdir -p "$release_dir"
+          cp -p -- "$debug_dir"/*.deb "$release_dir/"
+          find "$release_dir" -type f -name '*dev*' -delete
+          find "$release_dir" -type f -name '*dbgsym*' -delete
+          find "$release_dir" -type f -name '*test*' -delete
+          if ! compgen -G "$release_dir/*.deb" >/dev/null; then
+            echo "No release Debian packages remain for ubuntu-resolute" >&2
+            exit 1
+          fi
+          (
+            cd "$release_dir"
+            find . -maxdepth 1 -type f -name '*.deb' -print0 | sort -z | xargs -0r sha256sum > SHA256SUMS
+            test -s SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$release_dir/SHA256SUMS"
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: denial_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          path: build-artifacts/denial/ubuntu-resolute
+          if-no-files-found: error
+          retention-days: 90
+
+  fedora-43:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Fedora 43' }}
+    runs-on: ubuntu-26.04-arm
+    container:
+      image: fedora:43
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        shell: bash
+        run: |
+          dnf install -y git shadow-utils sudo
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_root="$RUNNER_TEMP/anland-denial-fedora-43"
+          work_dir="$work_root/work"
+          packages_dir="$work_root/packages"
+          publish_dir="$GITHUB_WORKSPACE/build-artifacts/denial/fedora-43"
+          mkdir -p "$work_dir" "$packages_dir" "$publish_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_root"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          release_suffix="$short_hash"_"fedora43_aarch64"
+          echo "BUILD_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PACKAGES_DIR=$packages_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PUBLISH_DIR=$publish_dir" >> "$GITHUB_ENV"
+          echo "BUILD_RELEASE_NAME_SUFFIX=$release_suffix" >> "$GITHUB_ENV"
+
+      - name: Build Denial packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$BUILD_WORK_DIR" \
+            ARTIFACTS_DIR="$BUILD_PACKAGES_DIR" \
+            ARTIFACTS="$BUILD_PACKAGES_DIR" \
+            ANLAND_WITH_DEPS=1 \
+            ANLAND_INSTALL=0 \
+            JOBS=2 \
+            ANLAND_WITH_DE=1 \
+            ANLAND_ENGINE_MODE=auto \
+            bash "$GITHUB_WORKSPACE/producers/denial/Fedora43_v5/build.sh"
+
+      - name: Collect RPM packages and checksums
+        shell: bash
+        run: |
+          artifact_dir="$BUILD_PUBLISH_DIR"
+          mkdir -p "$artifact_dir"
+          found=0
+          while IFS= read -r -d '' package; do
+            cp -- "$package" "$artifact_dir/"
+            found=1
+          done < <(
+            for candidate in "$BUILD_PACKAGES_DIR" "$GITHUB_WORKSPACE/producers/denial/Fedora43_v5/artifacts"; do
+              if [[ -d "$candidate" ]]; then
+                find "$candidate" -type f -name '*.rpm' ! -name '*.src.rpm' ! -name '*debug*' -print0
+              fi
+            done | sort -zu
+          )
+          if [[ "$found" != 1 ]]; then
+            echo "No Fedora RPM packages were produced for denial/fedora-43" >&2
+            exit 1
+          fi
+          for candidate in "$BUILD_PACKAGES_DIR" "$BUILD_WORK_DIR"; do
+            for metadata in packages.list build-inputs.json; do
+              if [[ -f "$candidate/$metadata" && ! -e "$artifact_dir/$metadata" ]]; then
+                cp -- "$candidate/$metadata" "$artifact_dir/"
+              fi
+            done
+          done
+          (
+            cd "$artifact_dir"
+            sha256sum -- ./*.rpm > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$artifact_dir/SHA256SUMS"
+
+      - name: Upload Fedora packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: denial_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          path: build-artifacts/denial/fedora-43
+          if-no-files-found: error
+          retention-days: 90
+
+  fedora-44:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Fedora 44' }}
+    runs-on: ubuntu-26.04-arm
+    container:
+      image: fedora:44
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        shell: bash
+        run: |
+          dnf install -y git shadow-utils sudo
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_root="$RUNNER_TEMP/anland-denial-fedora-44"
+          work_dir="$work_root/work"
+          packages_dir="$work_root/packages"
+          publish_dir="$GITHUB_WORKSPACE/build-artifacts/denial/fedora-44"
+          mkdir -p "$work_dir" "$packages_dir" "$publish_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_root"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          release_suffix="$short_hash"_"fedora44_aarch64"
+          echo "BUILD_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PACKAGES_DIR=$packages_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PUBLISH_DIR=$publish_dir" >> "$GITHUB_ENV"
+          echo "BUILD_RELEASE_NAME_SUFFIX=$release_suffix" >> "$GITHUB_ENV"
+
+      - name: Build Denial packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$BUILD_WORK_DIR" \
+            ARTIFACTS_DIR="$BUILD_PACKAGES_DIR" \
+            ARTIFACTS="$BUILD_PACKAGES_DIR" \
+            ANLAND_WITH_DEPS=1 \
+            ANLAND_INSTALL=0 \
+            JOBS=2 \
+            ANLAND_WITH_DE=1 \
+            ANLAND_ENGINE_MODE=auto \
+            bash "$GITHUB_WORKSPACE/producers/denial/Fedora44_v5/build.sh"
+
+      - name: Collect RPM packages and checksums
+        shell: bash
+        run: |
+          artifact_dir="$BUILD_PUBLISH_DIR"
+          mkdir -p "$artifact_dir"
+          found=0
+          while IFS= read -r -d '' package; do
+            cp -- "$package" "$artifact_dir/"
+            found=1
+          done < <(
+            for candidate in "$BUILD_PACKAGES_DIR" "$GITHUB_WORKSPACE/producers/denial/Fedora44_v5/artifacts"; do
+              if [[ -d "$candidate" ]]; then
+                find "$candidate" -type f -name '*.rpm' ! -name '*.src.rpm' ! -name '*debug*' -print0
+              fi
+            done | sort -zu
+          )
+          if [[ "$found" != 1 ]]; then
+            echo "No Fedora RPM packages were produced for denial/fedora-44" >&2
+            exit 1
+          fi
+          for candidate in "$BUILD_PACKAGES_DIR" "$BUILD_WORK_DIR"; do
+            for metadata in packages.list build-inputs.json; do
+              if [[ -f "$candidate/$metadata" && ! -e "$artifact_dir/$metadata" ]]; then
+                cp -- "$candidate/$metadata" "$artifact_dir/"
+              fi
+            done
+          done
+          (
+            cd "$artifact_dir"
+            sha256sum -- ./*.rpm > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$artifact_dir/SHA256SUMS"
+
+      - name: Upload Fedora packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: denial_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          path: build-artifacts/denial/fedora-44
+          if-no-files-found: error
+          retention-days: 90
+
+  archlinuxarm:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Arch Linux ARM' }}
+    runs-on: ubuntu-26.04-arm
+    container:
+      image: lfdevs/archlinuxarm:base-devel
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        shell: bash
+        run: |
+          pacman -Syu --noconfirm --needed git shadow sudo
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: /usr/bin/pacman\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_root="$RUNNER_TEMP/anland-denial-archlinuxarm"
+          work_dir="$work_root/work"
+          packages_dir="$work_root/packages"
+          publish_dir="$GITHUB_WORKSPACE/build-artifacts/denial/archlinuxarm"
+          mkdir -p "$work_dir" "$packages_dir" "$publish_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_root"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          release_suffix="$short_hash"_"archlinuxarm_aarch64"
+          echo "BUILD_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PACKAGES_DIR=$packages_dir" >> "$GITHUB_ENV"
+          echo "BUILD_PUBLISH_DIR=$publish_dir" >> "$GITHUB_ENV"
+          echo "BUILD_RELEASE_NAME_SUFFIX=$release_suffix" >> "$GITHUB_ENV"
+
+      - name: Build Denial packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$BUILD_WORK_DIR" \
+            ARTIFACTS_DIR="$BUILD_PACKAGES_DIR" \
+            ARTIFACTS="$BUILD_PACKAGES_DIR" \
+            ANLAND_WITH_DEPS=1 \
+            ANLAND_INSTALL=0 \
+            JOBS=2 \
+            ANLAND_WITH_DE=1 \
+            ANLAND_ENGINE_MODE=auto \
+            bash "$GITHUB_WORKSPACE/producers/denial/Arch_v5/build.sh" --noconfirm
+
+      - name: Collect Arch packages and checksums
+        shell: bash
+        run: |
+          artifact_dir="$BUILD_PUBLISH_DIR"
+          mkdir -p "$artifact_dir"
+          found=0
+          while IFS= read -r -d '' package; do
+            cp -- "$package" "$artifact_dir/"
+            found=1
+          done < <(
+            for candidate in "$BUILD_PACKAGES_DIR" "$GITHUB_WORKSPACE/producers/denial/Arch_v5/artifacts"; do
+              if [[ -d "$candidate" ]]; then
+                find "$candidate" -maxdepth 1 -type f -name '*.pkg.tar.*' -print0
+              fi
+            done | sort -zu
+          )
+          if [[ "$found" != 1 ]]; then
+            echo "No Arch packages were produced for denial/archlinuxarm" >&2
+            exit 1
+          fi
+          (
+            cd "$artifact_dir"
+            sha256sum -- ./*.pkg.tar.* > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$artifact_dir/SHA256SUMS"
+
+      - name: Upload Arch Linux ARM packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: denial_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          path: build-artifacts/denial/archlinuxarm
+          if-no-files-found: error
+          retention-days: 90
