@@ -52,7 +52,7 @@ jobs:
           Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
           EOF
           apt-get update
-          apt-get install -y git sudo passwd ccache build-essential devscripts fakeroot quilt git-buildpackage pristine-tar
+          apt-get install -y git sudo passwd ccache build-essential cmake meson ninja-build pkgconf devscripts fakeroot quilt git-buildpackage pristine-tar
           id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
           printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
           chmod 0440 /etc/sudoers.d/builder
