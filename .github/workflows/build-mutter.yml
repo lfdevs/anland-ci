@@ -220,7 +220,7 @@ jobs:
             ANLAND_WITH_DEPS=1 ANLAND_INSTALL=0 JOBS=4 \
             bash "$GITHUB_WORKSPACE/producers/gnome/Fedora43_v5/build.sh"
 
-      - name: Collect package checksums
+      - name: Collect Fedora 43 packages for debug
         shell: bash
         run: |
           for metadata in packages.list build-inputs.json; do
@@ -228,6 +228,27 @@ jobs:
               cp -- "$MUTTER_WORK_DIR/$metadata" "$MUTTER_ARTIFACTS_DIR/"
             fi
           done
+          (
+            cd "$MUTTER_ARTIFACTS_DIR"
+            sha256sum -- ./*.rpm > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$MUTTER_ARTIFACTS_DIR/SHA256SUMS"
+
+      - name: Upload Fedora 43 packages for debug
+        uses: actions/upload-artifact@v7
+        with:
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          path: producers/gnome/Fedora43_v5/artifacts
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Collect Fedora 43 packages
+        shell: bash
+        run: |
+          find "$MUTTER_ARTIFACTS_DIR" -maxdepth 1 -type f -name '*.rpm' -name '*devel*' -delete
+          find "$MUTTER_ARTIFACTS_DIR" -maxdepth 1 -type f -name '*.rpm' -printf '%f\n' |
+            sort > "$MUTTER_ARTIFACTS_DIR/packages.list"
           (
             cd "$MUTTER_ARTIFACTS_DIR"
             sha256sum -- ./*.rpm > SHA256SUMS
@@ -286,7 +307,7 @@ jobs:
             ANLAND_WITH_DEPS=1 ANLAND_INSTALL=0 JOBS=4 \
             bash "$GITHUB_WORKSPACE/producers/gnome/Fedora44_v5/build.sh"
 
-      - name: Collect package checksums
+      - name: Collect Fedora 44 packages for debug
         shell: bash
         run: |
           for metadata in packages.list build-inputs.json; do
@@ -294,6 +315,27 @@ jobs:
               cp -- "$MUTTER_WORK_DIR/$metadata" "$MUTTER_ARTIFACTS_DIR/"
             fi
           done
+          (
+            cd "$MUTTER_ARTIFACTS_DIR"
+            sha256sum -- ./*.rpm > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$MUTTER_ARTIFACTS_DIR/SHA256SUMS"
+
+      - name: Upload Fedora 44 packages for debug
+        uses: actions/upload-artifact@v7
+        with:
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          path: producers/gnome/Fedora44_v5/artifacts
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Collect Fedora 44 packages
+        shell: bash
+        run: |
+          find "$MUTTER_ARTIFACTS_DIR" -maxdepth 1 -type f -name '*.rpm' -name '*devel*' -delete
+          find "$MUTTER_ARTIFACTS_DIR" -maxdepth 1 -type f -name '*.rpm' -printf '%f\n' |
+            sort > "$MUTTER_ARTIFACTS_DIR/packages.list"
           (
             cd "$MUTTER_ARTIFACTS_DIR"
             sha256sum -- ./*.rpm > SHA256SUMS
@@ -351,7 +393,7 @@ jobs:
             ANLAND_INSTALL=0 JOBS=2 \
             bash "$GITHUB_WORKSPACE/producers/gnome/Arch_v5/build.sh" --noconfirm
 
-      - name: Collect packages and checksums
+      - name: Collect Arch Linux ARM packages for debug
         shell: bash
         run: |
           mapfile -d '' packages < <(
@@ -360,6 +402,26 @@ jobs:
           ((${#packages[@]} > 0)) || { echo 'No Arch packages were produced' >&2; exit 1; }
           cp -- "${packages[@]}" "$MUTTER_ARTIFACTS_DIR/"
           (cd "$MUTTER_ARTIFACTS_DIR" && sha256sum -- *.pkg.tar.* > SHA256SUMS)
+          cat "$MUTTER_ARTIFACTS_DIR/SHA256SUMS"
+
+      - name: Upload Arch Linux ARM packages for debug
+        uses: actions/upload-artifact@v7
+        with:
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          path: producers/gnome/Arch_v5/artifacts
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Collect Arch Linux ARM packages
+        shell: bash
+        run: |
+          find "$MUTTER_ARTIFACTS_DIR" -maxdepth 1 -type f -name '*.pkg.tar.*' \
+            \( -name '*devkit*' -o -name '*docs*' \) -delete
+          (
+            cd "$MUTTER_ARTIFACTS_DIR"
+            sha256sum -- *.pkg.tar.* > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
           cat "$MUTTER_ARTIFACTS_DIR/SHA256SUMS"
 
       - name: Upload Arch Linux ARM packages
