@@ -43,6 +43,14 @@ jobs:
       - name: Install build tooling and configure builder
         shell: bash
         run: |
+          sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources
+          cat > /etc/apt/sources.list.d/anland-trixie-backports.sources <<'EOF'
+          Types: deb-src
+          URIs: http://deb.debian.org/debian
+          Suites: trixie-backports
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
+          EOF
           apt-get update
           apt-get install -y git sudo passwd ccache build-essential devscripts fakeroot quilt git-buildpackage pristine-tar
           id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
