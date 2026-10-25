@@ -115,7 +115,7 @@ jobs:
       - name: Upload debug packages
         uses: actions/upload-artifact@v7
         with:
-          name: kde_${{ env.BUILD_RELEASE_NAME_SUFFIX }}_debug
+          name: kwin_${{ env.BUILD_RELEASE_NAME_SUFFIX }}_debug
           path: build-artifacts/kde/debian-trixie-debug
           if-no-files-found: error
           retention-days: 90
@@ -145,7 +145,7 @@ jobs:
       - name: Upload release packages
         uses: actions/upload-artifact@v7
         with:
-          name: kde_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          name: kwin_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
           path: build-artifacts/kde/debian-trixie
           if-no-files-found: error
           retention-days: 90
@@ -235,7 +235,7 @@ jobs:
       - name: Upload debug packages
         uses: actions/upload-artifact@v7
         with:
-          name: kde_${{ env.BUILD_RELEASE_NAME_SUFFIX }}_debug
+          name: kwin_${{ env.BUILD_RELEASE_NAME_SUFFIX }}_debug
           path: build-artifacts/kde/ubuntu-resolute-debug
           if-no-files-found: error
           retention-days: 90
@@ -265,7 +265,7 @@ jobs:
       - name: Upload release packages
         uses: actions/upload-artifact@v7
         with:
-          name: kde_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          name: kwin_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
           path: build-artifacts/kde/ubuntu-resolute
           if-no-files-found: error
           retention-days: 90
@@ -359,7 +359,7 @@ jobs:
       - name: Upload Fedora packages
         uses: actions/upload-artifact@v7
         with:
-          name: kde_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          name: kwin_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
           path: build-artifacts/kde/fedora-43
           if-no-files-found: error
           retention-days: 90
@@ -453,7 +453,7 @@ jobs:
       - name: Upload Fedora packages
         uses: actions/upload-artifact@v7
         with:
-          name: kde_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          name: kwin_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
           path: build-artifacts/kde/fedora-44
           if-no-files-found: error
           retention-days: 90
@@ -540,7 +540,7 @@ jobs:
       - name: Upload Arch Linux ARM packages
         uses: actions/upload-artifact@v7
         with:
-          name: kde_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
+          name: kwin_${{ env.BUILD_RELEASE_NAME_SUFFIX }}
           path: build-artifacts/kde/archlinuxarm
           if-no-files-found: error
           retention-days: 90

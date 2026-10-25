@@ -76,7 +76,7 @@ jobs:
       - name: Upload build artifacts for debug
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums_debug.txt
@@ -97,7 +97,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums.txt
@@ -150,7 +150,7 @@ jobs:
       - name: Upload build artifacts for debug
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums_debug.txt
@@ -171,7 +171,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums.txt
@@ -238,7 +238,7 @@ jobs:
       - name: Upload Fedora 43 packages for debug
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
           path: producers/gnome/Fedora43_v5/artifacts
           if-no-files-found: error
           retention-days: 90
@@ -259,7 +259,7 @@ jobs:
       - name: Upload Fedora 43 packages
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
           path: producers/gnome/Fedora43_v5/artifacts
           if-no-files-found: error
           retention-days: 90
@@ -325,7 +325,7 @@ jobs:
       - name: Upload Fedora 44 packages for debug
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
           path: producers/gnome/Fedora44_v5/artifacts
           if-no-files-found: error
           retention-days: 90
@@ -346,7 +346,7 @@ jobs:
       - name: Upload Fedora 44 packages
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
           path: producers/gnome/Fedora44_v5/artifacts
           if-no-files-found: error
           retention-days: 90
@@ -407,7 +407,7 @@ jobs:
       - name: Upload Arch Linux ARM packages for debug
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
           path: producers/gnome/Arch_v5/artifacts
           if-no-files-found: error
           retention-days: 90
@@ -427,7 +427,7 @@ jobs:
       - name: Upload Arch Linux ARM packages
         uses: actions/upload-artifact@v7
         with:
-          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
           path: producers/gnome/Arch_v5/artifacts
           if-no-files-found: error
           retention-days: 90
