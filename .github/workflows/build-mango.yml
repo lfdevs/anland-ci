@@ -40,12 +40,34 @@ jobs:
       options: --privileged --user root
 
     steps:
-      - name: Install build tooling and configure builder
+      - name: Install build dependencies and configure builder
         shell: bash
         run: |
           sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources
+          cat > /etc/apt/sources.list.d/anland-trixie-backports.sources <<'EOF'
+          Types: deb deb-src
+          URIs: http://deb.debian.org/debian
+          Suites: trixie-backports
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
+          EOF
           apt-get update
-          apt-get install -y git sudo passwd ccache build-essential cmake meson ninja-build pkgconf devscripts fakeroot quilt git-buildpackage pristine-tar
+          apt-get install -y \
+            git sudo passwd ccache build-essential cmake meson ninja-build pkgconf \
+            devscripts fakeroot quilt git-buildpackage pristine-tar \
+            python3 curl ca-certificates dpkg-dev debhelper patch xz-utils unzip zip file binutils \
+            libpipewire-0.3-dev libinput-dev libudev-dev libseat-dev libdisplay-info-dev \
+            libgbm-dev libegl-dev libgles-dev libvulkan-dev glslang-tools \
+            libpcre2-dev libcjson-dev libpango1.0-dev libpixman-1-dev \
+            libwayland-dev libdrm-dev libffi-dev libexpat1-dev libxml2-dev bison \
+            libxcb1-dev libxcb-render0-dev libxcb-randr0-dev libxcb-xfixes0-dev \
+            libxcb-icccm4-dev libxcb-composite0-dev libxcb-errors-dev libxcb-ewmh-dev \
+            libxcb-res0-dev libxcb-shape0-dev libxcb-shm0-dev xkb-data hwdata \
+            wayland-protocols patchelf xwayland
+          apt-get -y --no-install-recommends -t trixie-backports install libxkbcommon-dev
+          apt-get build-dep -y --no-install-recommends \
+            wayland libdrm wayland-protocols pixman xwayland \
+            libxkbcommon/trixie-backports
           id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
           printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
           chmod 0440 /etc/sudoers.d/builder

@@ -40,12 +40,12 @@ jobs:
       options: --privileged --user root
 
     steps:
-      - name: Install build tooling and configure builder
+      - name: Install build dependencies and configure builder
         shell: bash
         run: |
           sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources
           cat > /etc/apt/sources.list.d/anland-trixie-backports.sources <<'EOF'
-          Types: deb-src
+          Types: deb deb-src
           URIs: http://deb.debian.org/debian
           Suites: trixie-backports
           Components: main
@@ -53,6 +53,11 @@ jobs:
           EOF
           apt-get update
           apt-get install -y git sudo passwd ccache build-essential cmake meson ninja-build pkgconf devscripts fakeroot quilt git-buildpackage pristine-tar
+          apt-get build-dep -y --no-install-recommends \
+            hyprutils/trixie-backports hyprlang/trixie-backports \
+            hyprgraphics/trixie-backports aquamarine/trixie-backports \
+            hyprland/trixie-backports
+          apt-get build-dep -y --no-install-recommends xwayland
           id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
           printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
           chmod 0440 /etc/sudoers.d/builder
