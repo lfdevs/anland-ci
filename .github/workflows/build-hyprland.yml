@@ -55,7 +55,7 @@ jobs:
           apt-get install -y \
             git sudo passwd ccache build-essential cmake meson ninja-build pkgconf \
             devscripts fakeroot quilt git-buildpackage pristine-tar \
-            libpipewire-0.3-dev
+            libpipewire-0.3-dev libglm-dev
           apt-get -t trixie-backports build-dep -y --no-install-recommends \
             hyprutils/trixie-backports hyprlang/trixie-backports \
             hyprgraphics/trixie-backports aquamarine/trixie-backports \
