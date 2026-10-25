@@ -53,7 +53,7 @@ jobs:
           EOF
           apt-get update
           apt-get install -y git sudo passwd ccache build-essential cmake meson ninja-build pkgconf devscripts fakeroot quilt git-buildpackage pristine-tar
-          apt-get build-dep -y --no-install-recommends \
+          apt-get -t trixie-backports build-dep -y --no-install-recommends \
             hyprutils/trixie-backports hyprlang/trixie-backports \
             hyprgraphics/trixie-backports aquamarine/trixie-backports \
             hyprland/trixie-backports
