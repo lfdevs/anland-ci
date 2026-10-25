@@ -52,7 +52,10 @@ jobs:
           Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
           EOF
           apt-get update
-          apt-get install -y git sudo passwd ccache build-essential cmake meson ninja-build pkgconf devscripts fakeroot quilt git-buildpackage pristine-tar
+          apt-get install -y \
+            git sudo passwd ccache build-essential cmake meson ninja-build pkgconf \
+            devscripts fakeroot quilt git-buildpackage pristine-tar \
+            libpipewire-0.3-dev
           apt-get -t trixie-backports build-dep -y --no-install-recommends \
             hyprutils/trixie-backports hyprlang/trixie-backports \
             hyprgraphics/trixie-backports aquamarine/trixie-backports \
