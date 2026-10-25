@@ -11,10 +11,18 @@ on:
         options:
           - Debian 13
           - Ubuntu 26.04
+          - Fedora 43
+          - Fedora 44
+          - Arch Linux ARM
+      build-all:
+        description: 'Build all distributions and ignore the distribution selection'
+        required: false
+        default: false
+        type: boolean
       ref:
         description: 'Ref'
         required: true
-        default: 'main'
+        default: 'legacy'
         type: string
 
 permissions:
@@ -22,7 +30,7 @@ permissions:
 
 jobs:
   debian-trixie:
-    if: ${{ inputs.distribution == 'Debian 13' }}
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Debian 13' }}
     runs-on: ubuntu-26.04-arm
     env:
       DEBIAN_FRONTEND: noninteractive
@@ -49,7 +57,7 @@ jobs:
           short_hash=$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
           echo "MUTTER_RELEASE_NAME_SUFFIX=${short_hash}_debian_trixie_arm64" >> "$GITHUB_ENV"
 
-      - name: Build and install Mutter packages
+      - name: Build Mutter packages
         shell: bash
         run: |
           chmod +x producers/gnome/Debian13_v5/build.sh
@@ -68,7 +76,7 @@ jobs:
       - name: Upload build artifacts for debug
         uses: actions/upload-artifact@v7
         with:
-          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums_debug.txt
@@ -89,14 +97,14 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums.txt
           retention-days: 90
 
   ubuntu-resolute:
-    if: ${{ inputs.distribution == 'Ubuntu 26.04' }}
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Ubuntu 26.04' }}
     runs-on: ubuntu-26.04-arm
     env:
       DEBIAN_FRONTEND: noninteractive
@@ -123,7 +131,7 @@ jobs:
           short_hash=$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
           echo "MUTTER_RELEASE_NAME_SUFFIX=${short_hash}_ubuntu_resolute_arm64" >> "$GITHUB_ENV"
 
-      - name: Build and install Mutter packages
+      - name: Build Mutter packages
         shell: bash
         run: |
           chmod +x producers/gnome/Ubuntu2604_v5/build.sh
@@ -142,7 +150,7 @@ jobs:
       - name: Upload build artifacts for debug
         uses: actions/upload-artifact@v7
         with:
-          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}_debug
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums_debug.txt
@@ -163,8 +171,201 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: mutter_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
           path: |
             ~/anland-debbuild/**/*.deb
             ~/sha256sums.txt
+          retention-days: 90
+
+  fedora-43:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Fedora 43' }}
+    runs-on: ubuntu-26.04-arm
+    container:
+      image: fedora:43
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        run: |
+          dnf install -y git shadow-utils sudo
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_dir="$RUNNER_TEMP/anland-fedora43"
+          artifacts_dir="$GITHUB_WORKSPACE/producers/gnome/Fedora43_v5/artifacts"
+          mkdir -p "$work_dir" "$artifacts_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_dir"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          echo "MUTTER_RELEASE_NAME_SUFFIX=${short_hash}_fedora43_aarch64" >> "$GITHUB_ENV"
+          echo "MUTTER_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "MUTTER_ARTIFACTS_DIR=$artifacts_dir" >> "$GITHUB_ENV"
+
+      - name: Build Fedora 43 Mutter packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$MUTTER_WORK_DIR" \
+            ARTIFACTS_DIR="$MUTTER_ARTIFACTS_DIR" \
+            ANLAND_WITH_DEPS=1 ANLAND_INSTALL=0 JOBS=4 \
+            bash "$GITHUB_WORKSPACE/producers/gnome/Fedora43_v5/build.sh"
+
+      - name: Collect package checksums
+        shell: bash
+        run: |
+          for metadata in packages.list build-inputs.json; do
+            if [[ -f "$MUTTER_WORK_DIR/$metadata" ]]; then
+              cp -- "$MUTTER_WORK_DIR/$metadata" "$MUTTER_ARTIFACTS_DIR/"
+            fi
+          done
+          (
+            cd "$MUTTER_ARTIFACTS_DIR"
+            sha256sum -- ./*.rpm > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$MUTTER_ARTIFACTS_DIR/SHA256SUMS"
+
+      - name: Upload Fedora 43 packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          path: producers/gnome/Fedora43_v5/artifacts
+          if-no-files-found: error
+          retention-days: 90
+
+  fedora-44:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Fedora 44' }}
+    runs-on: ubuntu-26.04-arm
+    container:
+      image: fedora:44
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        run: |
+          dnf install -y git shadow-utils sudo
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_dir="$RUNNER_TEMP/anland-fedora44"
+          artifacts_dir="$GITHUB_WORKSPACE/producers/gnome/Fedora44_v5/artifacts"
+          mkdir -p "$work_dir" "$artifacts_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_dir"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          echo "MUTTER_RELEASE_NAME_SUFFIX=${short_hash}_fedora44_aarch64" >> "$GITHUB_ENV"
+          echo "MUTTER_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "MUTTER_ARTIFACTS_DIR=$artifacts_dir" >> "$GITHUB_ENV"
+
+      - name: Build Fedora 44 Mutter packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$MUTTER_WORK_DIR" \
+            ARTIFACTS_DIR="$MUTTER_ARTIFACTS_DIR" \
+            ANLAND_WITH_DEPS=1 ANLAND_INSTALL=0 JOBS=4 \
+            bash "$GITHUB_WORKSPACE/producers/gnome/Fedora44_v5/build.sh"
+
+      - name: Collect package checksums
+        shell: bash
+        run: |
+          for metadata in packages.list build-inputs.json; do
+            if [[ -f "$MUTTER_WORK_DIR/$metadata" ]]; then
+              cp -- "$MUTTER_WORK_DIR/$metadata" "$MUTTER_ARTIFACTS_DIR/"
+            fi
+          done
+          (
+            cd "$MUTTER_ARTIFACTS_DIR"
+            sha256sum -- ./*.rpm > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          cat "$MUTTER_ARTIFACTS_DIR/SHA256SUMS"
+
+      - name: Upload Fedora 44 packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          path: producers/gnome/Fedora44_v5/artifacts
+          if-no-files-found: error
+          retention-days: 90
+
+  archlinuxarm:
+    if: ${{ inputs['build-all'] || inputs.distribution == 'Arch Linux ARM' }}
+    runs-on: ubuntu-26.04-arm
+    container:
+      image: lfdevs/archlinuxarm:base-devel
+      options: --privileged --user root
+
+    steps:
+      - name: Install build tooling and configure builder
+        run: |
+          pacman -Syu --noconfirm --needed git shadow sudo
+          id builder >/dev/null 2>&1 || useradd --create-home --user-group --shell /bin/bash builder
+          printf 'builder ALL=(ALL) NOPASSWD: /usr/bin/pacman\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          visudo -cf /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Prepare build directories
+        shell: bash
+        run: |
+          work_dir="$RUNNER_TEMP/anland-archlinuxarm"
+          artifacts_dir="$GITHUB_WORKSPACE/producers/gnome/Arch_v5/artifacts"
+          mkdir -p "$work_dir" "$artifacts_dir"
+          chown -R builder "$GITHUB_WORKSPACE" "$work_dir"
+          short_hash=$(sudo -u builder -H git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          echo "MUTTER_RELEASE_NAME_SUFFIX=${short_hash}_archlinuxarm_aarch64" >> "$GITHUB_ENV"
+          echo "MUTTER_WORK_DIR=$work_dir" >> "$GITHUB_ENV"
+          echo "MUTTER_ARTIFACTS_DIR=$artifacts_dir" >> "$GITHUB_ENV"
+
+      - name: Build Arch Linux ARM Mutter packages
+        shell: bash
+        run: |
+          sudo -u builder -H env \
+            WORKDIR="$MUTTER_WORK_DIR" \
+            ANLAND_INSTALL=0 JOBS=2 \
+            bash "$GITHUB_WORKSPACE/producers/gnome/Arch_v5/build.sh" --noconfirm
+
+      - name: Collect packages and checksums
+        shell: bash
+        run: |
+          mapfile -d '' packages < <(
+            find "$MUTTER_WORK_DIR/packages" -maxdepth 1 -type f -name '*.pkg.tar.*' -print0 | sort -z
+          )
+          ((${#packages[@]} > 0)) || { echo 'No Arch packages were produced' >&2; exit 1; }
+          cp -- "${packages[@]}" "$MUTTER_ARTIFACTS_DIR/"
+          (cd "$MUTTER_ARTIFACTS_DIR" && sha256sum -- *.pkg.tar.* > SHA256SUMS)
+          cat "$MUTTER_ARTIFACTS_DIR/SHA256SUMS"
+
+      - name: Upload Arch Linux ARM packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: gnome_${{ env.MUTTER_RELEASE_NAME_SUFFIX }}
+          path: producers/gnome/Arch_v5/artifacts
+          if-no-files-found: error
           retention-days: 90
